@@ -39,15 +39,17 @@ namespace HsDeckInspector
         private static Transform _back;
         private static CardPlacement _backPlacement;
 
-        /// <summary>A flat actor's measurements at identity: where it starts, and how tall it is.</summary>
+        /// <summary>A flat actor's measurements at identity: where it starts, and its size.</summary>
         private struct CardPlacement
         {
             public Vector3 Anchor;
+            public float Width;
             public float Height;
 
             public CardPlacement(Bounds bounds)
             {
                 Anchor = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+                Width = bounds.size.x;
                 Height = bounds.size.z;
             }
         }
@@ -252,19 +254,21 @@ namespace HsDeckInspector
         }
 
         /// <summary>
-        /// Lays a card on one side of the deck, as tall as the deck, its top up and its art facing outward. Depth
-        /// squashes the card towards its base: from the front it reads the same, from the side it hugs the deck, where
-        /// a hand card's raised layers and a deep card back's model would otherwise stand well off it. Gap is the
-        /// distance from the deck's surface, negative to sink into it.
+        /// Lays a card on one side of the deck, the deck's width and height, its top up and its art facing outward.
+        /// It has to cover that side: the deck's own surface carries the flat picture of the card back, and any of it
+        /// left showing around or over the rim reads as a second, misaligned copy. For the same reason a card must
+        /// never sink into the deck: a card back's rim sits at its base. Depth squashes the card towards that base:
+        /// from the front it reads the same, from the side it hugs the deck, where a hand card's raised layers and a
+        /// deep card back's model would otherwise stand well off it.
         /// </summary>
-        private static void Place(Transform card, CardPlacement placement, float deckHeight, float side, float depth, float gap)
+        private static void Place(Transform card, CardPlacement placement, float deckWidth, float deckHeight, float side, float depth)
         {
-            float size = deckHeight / placement.Height;
-            var scale = new Vector3(size, size * depth, size);
+            float height = deckHeight / placement.Height;
+            var scale = new Vector3(deckWidth / placement.Width, height * depth, height);
             var rotation = Quaternion.LookRotation(Vector3.up, new Vector3(0f, 0f, side));
             card.localScale = scale;
             card.localRotation = rotation;
-            card.localPosition = new Vector3(0f, 0f, side) * (_halfThickness + gap) - rotation * Vector3.Scale(placement.Anchor, scale);
+            card.localPosition = new Vector3(0f, 0f, side) * (_halfThickness + FaceLift) - rotation * Vector3.Scale(placement.Anchor, scale);
         }
 
         private static Mesh MeshOf(Actor step) => step.GetComponentInChildren<MeshFilter>().sharedMesh;
@@ -301,10 +305,11 @@ namespace HsDeckInspector
             _body.localScale = scale;
             _body.localPosition = -(_bodyRotation * Vector3.Scale(bounds.center, scale));
 
+            float width = bounds.size.x * scale.x;
             float height = bounds.size.y * scale.y;
             _halfThickness = target * _baseScale.z / 2f;
-            if (_face != null) Place(_face, _facePlacement, height, -1f, Mathf.Clamp(Plugin.FaceDepth.Value, 0.05f, 1f), FaceLift);
-            if (_back != null) Place(_back, _backPlacement, height, 1f, Mathf.Clamp(Plugin.BackDepth.Value, 0.05f, 1f), -Plugin.BackSink.Value);
+            if (_face != null) Place(_face, _facePlacement, width, height, -1f, Mathf.Clamp(Plugin.FaceDepth.Value, 0.05f, 1f));
+            if (_back != null) Place(_back, _backPlacement, width, height, 1f, Mathf.Clamp(Plugin.BackDepth.Value, 0.05f, 1f));
         }
 
         private static void Spin()
