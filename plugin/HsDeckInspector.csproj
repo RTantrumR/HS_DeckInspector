@@ -4,7 +4,7 @@
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>com.tantrumua.deckinspector</AssemblyName>
     <Product>HS Deck Inspector</Product>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <LangVersion>latest</LangVersion>
     <RootNamespace>HsDeckInspector</RootNamespace>
     <RestoreAdditionalProjectSources>

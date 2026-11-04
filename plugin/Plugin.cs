@@ -66,6 +66,7 @@ namespace HsDeckInspector
             Config.Bind("General", "Guid", MyPluginInfo.PLUGIN_GUID, "For Firestone's mods page.");
             Config.Bind("General", "Version", MyPluginInfo.PLUGIN_VERSION, "For Firestone's mods page.").Value = MyPluginInfo.PLUGIN_VERSION;
             Config.Bind("General", "DownloadLink", Repository, "For Firestone's mods page.");
+            Config.Bind("General", "Description", "Pull a deck off the board and spin it.", "For Firestone's mods page.");
         }
 
         private void Update()
