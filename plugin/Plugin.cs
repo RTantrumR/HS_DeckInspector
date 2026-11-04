@@ -10,6 +10,8 @@ namespace HsDeckInspector
     [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
     public class Plugin : BaseUnityPlugin
     {
+        private const string Repository = "https://github.com/RTantrumR/HS_DeckInspector";
+
         internal static ManualLogSource Log;
         internal static ConfigEntry<KeyCode> InspectKey;
         internal static ConfigEntry<KeyCode> OpponentKey;
@@ -25,6 +27,7 @@ namespace HsDeckInspector
         private void Awake()
         {
             Log = Logger;
+            BindModInfo();
             InspectKey = Config.Bind("Controls", "InspectKey", KeyCode.D,
                 "Pulls your deck out, and sends it back.");
             OpponentKey = Config.Bind("Controls", "OpponentKey", KeyCode.F,
@@ -50,6 +53,20 @@ namespace HsDeckInspector
         }
 
         internal static void ReloadConfig() => _config.Reload();
+
+        /// <summary>
+        /// What Firestone's mods page reads from a plugin's config file (mods-manager.service.ts): it lists an installed
+        /// mod and checks for updates from these, so they have to be there however the addon got installed. Version is
+        /// set every start: an update through the setup would otherwise leave the old one for Firestone to compare.
+        /// No = in the descriptions: Firestone reads every line holding one as a setting.
+        /// </summary>
+        private void BindModInfo()
+        {
+            Config.Bind("General", "Name", MyPluginInfo.PLUGIN_NAME, "For Firestone's mods page.");
+            Config.Bind("General", "Guid", MyPluginInfo.PLUGIN_GUID, "For Firestone's mods page.");
+            Config.Bind("General", "Version", MyPluginInfo.PLUGIN_VERSION, "For Firestone's mods page.").Value = MyPluginInfo.PLUGIN_VERSION;
+            Config.Bind("General", "DownloadLink", Repository, "For Firestone's mods page.");
+        }
 
         private void Update()
         {

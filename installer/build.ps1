@@ -1,4 +1,7 @@
-# Builds installer/out/HSDeckInspector-Setup-<version>.exe.
+# Builds installer/out/HSDeckInspector-Setup-<version>.exe and, beside it, the plugin DLL for Firestone's mods page.
+# Both go on the release. Firestone downloads <repo>/releases/latest/download/com.tantrumua.deckinspector.dll, so the DLL
+# keeps exactly that name, and the release's tag is the plain version (1.0.0): it compares versions with parseInt,
+# which a v prefix turns into NaN, so no update would ever show.
 #   powershell -ExecutionPolicy Bypass -File installer\build.ps1 [-HsDir E:\Games\Hearthstone]
 # Builds the plugin, stages BepInEx (taken from a Hearthstone folder where it already runs) and the plugin into
 # installer/stage, then compiles HSDeckInspector.iss with Inno Setup 6.
@@ -38,4 +41,5 @@ Get-ChildItem -Recurse $bep -Filter *.xml | Remove-Item
 
 & $iscc "/DAppVersion=$version" (Join-Path $here "HSDeckInspector.iss")
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
-Get-Item (Join-Path $here "out\HSDeckInspector-Setup-$version.exe")
+Copy-Item (Join-Path $plug "com.tantrumua.deckinspector.dll") (Join-Path $here "out") -Force
+Get-Item (Join-Path $here "out\HSDeckInspector-Setup-$version.exe"), (Join-Path $here "out\com.tantrumua.deckinspector.dll")
