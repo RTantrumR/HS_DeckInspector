@@ -10,6 +10,10 @@ namespace HsDeckInspector
     /// The panel that rebinds the deck keys, opened by a button added to the game's Options menu. Its parts are copies of
     /// the Sound Options popup's children, never the prefab itself: its root's SoundOptionsMenu would tie them to the
     /// game's sound settings. Each row is a label over a button showing the bound key: click it, press a key.
+    ///
+    /// The popup is cut down to its two rows: the frame is three stacked slices (Top, a stretched Middle, Bottom) and its
+    /// two insets are meshes of their own, so the lower inset becomes a copy of the smaller upper one, and the Middle
+    /// loses what that saved.
     /// </summary>
     internal static class KeyPanel
     {
@@ -17,9 +21,7 @@ namespace HsDeckInspector
         private const string Title = "Deck Keys";
         private const string Listening = "Press a key";
         private const float RefusalSeconds = 3f;
-
-        // The rows' centres, from the frame's top, as shares of its height: one in each of the frame's dark insets.
-        private const float FirstRow = 0.235f, SecondRow = 0.67f;
+        private const float LabelWidth = 190f; // most of the frame's width, for the refusals
 
         private sealed class Row
         {
@@ -215,23 +217,22 @@ namespace HsDeckInspector
                 NewRow(Plugin.OpponentKey, "Show your opponent's deck", secondLabel, copy.GetComponentInChildren<UIBButton>(true)),
             };
 
-            var frame = Bounds(Find(t, "OptionFrame"));
-            if (frame.size.z > 0f)
+            if (!Shrink(t, out var firstInset, out var secondInset))
             {
-                PlaceRow(_rows[0], frame, FirstRow);
-                PlaceRow(_rows[1], frame, SecondRow);
+                Plugin.Log.LogWarning("Key panel: can't measure the frame; the rows stay where the prefab has them");
             }
             else
             {
-                Plugin.Log.LogWarning("Key panel: can't measure the frame; the rows stay where the prefab has them");
+                float centre = Bounds(t.Find("OptionFrame")).center.x;
+                PlaceRow(_rows[0], centre, firstInset);
+                PlaceRow(_rows[1], centre, secondInset);
             }
 
             left.GetComponentInChildren<UIBButton>(true)?.AddEventListener(UIEventType.RELEASE, e => Back());
             right.GetComponentInChildren<UIBButton>(true)?.AddEventListener(UIEventType.RELEASE, e => Hide());
 
-            string parts = "";
-            foreach (Transform child in t) parts += " " + child.name;
-            Plugin.Log.LogInfo($"Key panel built; frame {frame.center} size {frame.size}; parts:{parts}");
+            var frame = Bounds(t.Find("OptionFrame"));
+            Plugin.Log.LogInfo($"Key panel built; frame {frame.center} size {frame.size}");
             _root.SetActive(false);
             return true;
         }
@@ -243,21 +244,78 @@ namespace HsDeckInspector
             return row;
         }
 
-        /// <summary>Label over button, centred across the frame, around a height given from its top.</summary>
-        private static void PlaceRow(Row row, Bounds frame, float fromTop)
+        /// <summary>
+        /// Cuts the popup down to two insets the size of its upper one, keeping the spacing it has, and returns their
+        /// centres. Everything is measured: the frame's slices sit at large opposite offsets, so their numbers say little.
+        /// </summary>
+        private static bool Shrink(Transform root, out float firstInset, out float secondInset)
         {
-            float z = frame.max.z - frame.size.z * fromTop;
+            firstInset = secondInset = 0f;
+            var frame = root.Find("OptionFrame");
+            var upper = root.Find("OptionSection1");
+            var lower = root.Find("OptionSection2");
+            var middle = frame != null ? frame.Find("Middle") : null;
+            var bottom = frame != null ? frame.Find("Bottom") : null;
+            var buttons = root.Find("Button_Framed_Double (1)");
+            if (upper == null || lower == null || middle == null || bottom == null || buttons == null) return false;
+
+            var whole = Bounds(frame);
+            var top = Bounds(upper);
+            var low = Bounds(lower);
+            if (whole.size.z <= 0f || top.size.z <= 0f || low.size.z <= top.size.z) return false;
+
+            float gap = top.min.z - low.max.z;
+            float shift = -(top.size.z + gap);
+            float cut = low.size.z - top.size.z;
+
+            var copy = UnityEngine.Object.Instantiate(upper.gameObject, root, false);
+            copy.name = "OptionSection2Small";
+            copy.transform.position = upper.position + new Vector3(0f, 0f, shift);
+            lower.gameObject.SetActive(false);
+
+            foreach (Transform slice in middle) Trim(slice, cut);
+            bottom.position += new Vector3(0f, 0f, cut);
+            buttons.position += new Vector3(0f, 0f, cut);
+
+            var clicks = root.Find("MenuClickArea");
+            if (clicks != null)
+            {
+                var size = clicks.localScale;
+                clicks.localScale = new Vector3(size.x, size.y, size.z * (whole.size.z - cut) / whole.size.z);
+                clicks.position += new Vector3(0f, 0f, cut / 2f);
+            }
+
+            root.position += new Vector3(0f, 0f, -cut / 2f); // back to the middle of the screen
+            firstInset = top.center.z - cut / 2f;
+            secondInset = firstInset + shift;
+            Plugin.Log.LogInfo($"Key panel cut by {cut:0.##} of {whole.size.z:0.##}; inset {top.size.z:0.##}, gap {gap:0.##}");
+            return true;
+        }
+
+        /// <summary>Takes a height off a slice, its top edge staying put.</summary>
+        private static void Trim(Transform slice, float cut)
+        {
+            var before = Bounds(slice);
+            if (before.size.z <= cut) return;
+            var scale = slice.localScale;
+            slice.localScale = new Vector3(scale.x, scale.y, scale.z * (before.size.z - cut) / before.size.z);
+            slice.position += new Vector3(0f, 0f, before.max.z - Bounds(slice).max.z);
+        }
+
+        /// <summary>Label over button, centred across the frame, around a height.</summary>
+        private static void PlaceRow(Row row, float centre, float z)
+        {
             var button = row.Button.transform;
             var size = Bounds(button);
             float offset = button.position.x - size.center.x;
-            button.position = new Vector3(frame.center.x + offset, button.position.y, z - size.size.z * 0.55f - (size.center.z - button.position.z));
+            button.position = new Vector3(centre + offset, button.position.y, z - size.size.z * 0.55f - (size.center.z - button.position.z));
 
             var text = row.Title;
             float scale = Mathf.Abs(text.transform.lossyScale.x);
-            if (scale > 0f) text.Width = frame.size.x * 0.8f / scale;
+            if (scale > 0f) text.Width = LabelWidth / scale;
             text.Alignment = UberText.AlignmentOptions.Center;
             text.Anchor = UberText.AnchorOptions.Middle;
-            text.transform.position = new Vector3(frame.center.x, text.transform.position.y, z + size.size.z * 0.45f);
+            text.transform.position = new Vector3(centre, text.transform.position.y, z + size.size.z * 0.45f);
             Plugin.Log.LogInfo($"Key panel row: button {size.size}, row at {z}");
         }
 
