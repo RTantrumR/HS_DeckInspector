@@ -3,14 +3,18 @@ using UnityEngine;
 namespace HsDeckInspector
 {
     /// <summary>
-    /// Pulls the friendly deck off the board and lets the player spin it.
+    /// Pulls either player's deck off the board and lets the player spin it. Nothing here is hidden information: the
+    /// game shows both decks' card counts and card backs.
     ///
-    /// The object is a copy built from the deck's live meshes and materials, so it carries the player's card back
+    /// The object is a copy built from the deck's live meshes and materials, so it carries its owner's card back
     /// (custom deck meshes included). The board deck only stops drawing, through forceRenderingOff: gameplay finds
     /// the active thickness by reading renderer.enabled (ZoneDeck.GetActiveThickness), so that flag must never change.
     ///
+    /// Body is never rotated: on the board a deck stands on its long edge, so neither the world's up nor the camera's
+    /// says which way the card reads, while the meshes' own +Y is always the card's top.
+    ///
     /// Root faces the camera (+Z towards it, +Y up) and carries the flight; Spin turns under it around Y; Body holds
-    /// the mesh, the card's back towards +Z; the unknown card sits on the far side, facing -Z, and the player's full
+    /// the mesh, the card's back towards +Z; the unknown card sits on the far side, facing -Z, and the owner's full
     /// animated card back on the near side, facing +Z. The mesh's own back is the game's flat picture of it, and shows
     /// only if the animated one can't load.
     /// </summary>
@@ -22,8 +26,11 @@ namespace HsDeckInspector
         private const float FaceLift = 0.004f; // keeps the card clear of the deck's bottom surface
 
         private enum State { Closed, Opening, Open, Closing }
+        private enum Owner { None, Mine, Opponent }
 
         private static State _state;
+        private static Owner _owner;
+        private static Owner _next; // the deck to bring out once the one on screen is back
         private static ZoneDeck _deck;
         private static Actor[] _steps;
         private static Renderer[] _hidden;
@@ -54,7 +61,6 @@ namespace HsDeckInspector
             }
         }
 
-        private static Quaternion _bodyRotation;
         private static Vector3 _baseScale;
         private static float _thinnest, _thickest; // the one-card and full meshes' thickness
         private static float _halfThickness;
@@ -68,7 +74,8 @@ namespace HsDeckInspector
         {
             if (_state == State.Closed)
             {
-                if (Input.GetKeyDown(Plugin.InspectKey.Value) && CanOpen()) Open();
+                var wanted = PressedDeck();
+                if (wanted != Owner.None && CanOpen(wanted)) Open();
                 return;
             }
             if (!GameAlive())
@@ -79,10 +86,16 @@ namespace HsDeckInspector
 
             if (_state == State.Opening || _state == State.Open)
             {
-                if (Input.GetKeyDown(Plugin.InspectKey.Value) || Input.GetKeyUp(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+                var pressed = PressedDeck();
+                if (pressed != Owner.None || Input.GetKeyUp(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+                {
+                    if (pressed != _owner) _next = pressed; // the other deck's key swaps them
                     Close();
+                }
                 else
+                {
                     Spin();
+                }
             }
 
             float step = Time.unscaledDeltaTime / FlyTime;
@@ -96,7 +109,9 @@ namespace HsDeckInspector
                 _progress = Mathf.Max(0f, _progress - step);
                 if (_progress <= 0f)
                 {
+                    var next = _next;
                     Abort();
+                    if (next != Owner.None && CanOpen(next)) Open();
                     return;
                 }
             }
@@ -121,8 +136,16 @@ namespace HsDeckInspector
             _root = null;
             _deck = null;
             _steps = null;
+            _owner = _next = Owner.None;
             _state = State.Closed;
             InspectInputBlock.Set(false);
+        }
+
+        private static Owner PressedDeck()
+        {
+            if (Input.GetKeyDown(Plugin.InspectKey.Value)) return Owner.Mine;
+            if (Input.GetKeyDown(Plugin.OpponentKey.Value)) return Owner.Opponent;
+            return Owner.None;
         }
 
         private static bool GameAlive()
@@ -131,7 +154,7 @@ namespace HsDeckInspector
             return state != null && !state.IsGameOver() && _deck != null && Camera.main != null;
         }
 
-        private static bool CanOpen()
+        private static bool CanOpen(Owner owner)
         {
             var state = GameState.Get();
             if (state == null || state.IsGameOver() || Camera.main == null) return false;
@@ -141,9 +164,11 @@ namespace HsDeckInspector
             if (Input.GetMouseButton(0) || Input.GetMouseButton(1)) return false;
             var input = InputManager.Get();
             if (input == null || input.GetHeldCard() != null || state.IsInTargetMode()) return false;
-            var deck = state.GetFriendlySidePlayer()?.GetDeckZone();
+            var player = owner == Owner.Mine ? state.GetFriendlySidePlayer() : state.GetOpposingSidePlayer();
+            var deck = player?.GetDeckZone();
             if (deck == null || deck.GetCards().Count == 0) return false;
             _deck = deck;
+            _owner = owner;
             return true;
         }
 
@@ -159,13 +184,6 @@ namespace HsDeckInspector
             var sourceTransform = sourceRenderer.transform;
             var camera = Camera.main;
 
-            // Which of the mesh's sides is up on the board, and which way the camera reads the card.
-            Vector3 boardUp = sourceTransform.InverseTransformDirection(Vector3.up);
-            Vector3 screenUp = sourceTransform.InverseTransformDirection(camera.transform.up);
-            float backSign = boardUp.z >= 0f ? 1f : -1f;
-            float heightSign = screenUp.y >= 0f ? 1f : -1f;
-            _bodyRotation = Quaternion.Inverse(Quaternion.LookRotation(new Vector3(0f, 0f, backSign), new Vector3(0f, heightSign, 0f)));
-
             Vector3 lossy = sourceTransform.lossyScale;
             _baseScale = new Vector3(Mathf.Abs(lossy.x), Mathf.Abs(lossy.y), Mathf.Abs(lossy.z));
             _thinnest = MeshOf(_steps[0]).bounds.size.z;
@@ -176,7 +194,6 @@ namespace HsDeckInspector
             _spin.SetParent(_root.transform, false);
             _body = new GameObject("Body").transform;
             _body.SetParent(_spin, false);
-            _body.localRotation = _bodyRotation;
             _bodyFilter = _body.gameObject.AddComponent<MeshFilter>();
             _bodyRenderer = _body.gameObject.AddComponent<MeshRenderer>();
             _bodyRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
@@ -195,8 +212,8 @@ namespace HsDeckInspector
             HideBoardDeck();
             Pose();
 
-            Plugin.Log.LogInfo($"Deck out: {_deck.GetCards().Count} cards, mesh z {_thinnest:0.###}..{_thickest:0.###}, " +
-                $"board up {boardUp}, screen up {screenUp}, lossy {lossy}, camera {camera.name} fov {camera.fieldOfView:0.#} " +
+            Plugin.Log.LogInfo($"Deck out ({_owner}): {_deck.GetCards().Count} cards, mesh z {_thinnest:0.###}..{_thickest:0.###}, " +
+                $"rotation {sourceTransform.rotation.eulerAngles}, lossy {lossy}, camera {camera.name} fov {camera.fieldOfView:0.#} " +
                 $"near {camera.nearClipPlane:0.##} at {camera.transform.position}, layer {sourceTransform.gameObject.layer}");
         }
 
@@ -216,7 +233,7 @@ namespace HsDeckInspector
         {
             _back = null;
             if (!Plugin.AnimatedBack.Value) return;
-            int id = GameState.Get().GetFriendlySidePlayer().GetCardBackId();
+            int id = _deck.GetController().GetCardBackId();
             var loaded = CardBackManager.Get()?.LoadCardBackByIndex(id, unlit: true);
             var actor = loaded?.m_GameObject != null ? loaded.m_GameObject.GetComponent<Actor>() : null;
             if (actor == null)
@@ -303,7 +320,7 @@ namespace HsDeckInspector
             Vector3 scale = _baseScale;
             scale.z *= target / bounds.size.z;
             _body.localScale = scale;
-            _body.localPosition = -(_bodyRotation * Vector3.Scale(bounds.center, scale));
+            _body.localPosition = -Vector3.Scale(bounds.center, scale);
 
             float width = bounds.size.x * scale.x;
             float height = bounds.size.y * scale.y;
@@ -357,8 +374,6 @@ namespace HsDeckInspector
             float t = Mathf.SmoothStep(0f, 1f, _progress);
 
             var source = _deck.GetThicknessForLayout().GetMeshRenderer();
-            Quaternion boardRotation = source.transform.rotation * Quaternion.Inverse(_bodyRotation);
-
             float distance = Mathf.Max(CameraDistance, camera.nearClipPlane * 3f);
             Vector3 viewPosition = camera.transform.position + camera.transform.forward * distance;
             Quaternion viewRotation = Quaternion.LookRotation(-camera.transform.forward, camera.transform.up);
@@ -367,7 +382,7 @@ namespace HsDeckInspector
 
             var root = _root.transform;
             root.position = Vector3.Lerp(source.bounds.center, viewPosition, t);
-            root.rotation = Quaternion.Slerp(boardRotation, viewRotation, t);
+            root.rotation = Quaternion.Slerp(source.transform.rotation, viewRotation, t);
             root.localScale = Vector3.one * Mathf.Lerp(1f, fit, t);
 
             float angle = _state == State.Closing ? _closeAngle * t : _angle;

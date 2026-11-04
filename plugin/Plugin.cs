@@ -11,6 +11,7 @@ namespace HsDeckInspector
     {
         internal static ManualLogSource Log;
         internal static ConfigEntry<KeyCode> InspectKey;
+        internal static ConfigEntry<KeyCode> OpponentKey;
         internal static ConfigEntry<FaceCard.Style> FaceStyle;
         internal static ConfigEntry<float> ArtScale;
         internal static ConfigEntry<bool> AnimatedBack;
@@ -25,6 +26,8 @@ namespace HsDeckInspector
             Log = Logger;
             InspectKey = Config.Bind("Controls", "InspectKey", KeyCode.D,
                 "Pulls your deck out, and sends it back.");
+            OpponentKey = Config.Bind("Controls", "OpponentKey", KeyCode.F,
+                "Pulls your opponent's deck out, and sends it back. Each key swaps to its deck if the other one is out.");
             DragSpeed = Config.Bind("Controls", "DragSpeed", 0.45f,
                 "Degrees the deck turns per pixel dragged, at 1080p.");
             DeckHeight = Config.Bind("Look", "DeckHeight", 0.62f,
