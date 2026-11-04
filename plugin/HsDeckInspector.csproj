@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
-    <AssemblyName>com.rtantrumr.deckinspector</AssemblyName>
+    <AssemblyName>com.tantrumua.deckinspector</AssemblyName>
     <Product>HS Deck Inspector</Product>
     <Version>0.1.0</Version>
     <LangVersion>latest</LangVersion>
