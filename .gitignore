@@ -6,5 +6,9 @@
 bin/
 obj/
 
+# Installer build output
+installer/stage/
+installer/out/
+
 # Docs are their own nested repo, as in the sibling addons
 docs/

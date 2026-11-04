@@ -1,0 +1,14 @@
+HS Deck Inspector
+Copyright 2026 RTantrumR
+
+Licensed under the Apache License, Version 2.0 (see LICENSE). This covers the code, scripts and documentation
+in this repository; it does not cover the following:
+
+- Blizzard Entertainment material. Hearthstone and Blizzard Entertainment are trademarks or registered
+  trademarks of Blizzard Entertainment, Inc. The art, fonts and text the plugin shows are loaded from the
+  user's own Hearthstone installation at run time and remain the property of Blizzard Entertainment, Inc.;
+  no rights in them are claimed or granted here.
+- Third-party components the installer bundles (BepInEx, Unity Doorstop, HarmonyX, MonoMod, Mono.Cecil, the
+  Mono class libraries, UniTask) remain under their own licenses; see installer/licenses/.
+
+This project is not affiliated with, endorsed or sponsored by Blizzard Entertainment, Inc.
