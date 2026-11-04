@@ -2,6 +2,8 @@
 
 Pull a deck off the board in Hearthstone and turn it around in your hands.
 
+![Rebinding the keys in Options, then spinning your deck and the opponent's](images/deck-inspector.gif)
+
 - **D** brings out your deck, **F** your opponent's. Drag with the left mouse button to spin it.
 - **D**, **F**, **Esc** or a right click sends it back.
 - It's as thick as the cards left in it and wears its owner's card back, animated as in the collection.
@@ -20,7 +22,7 @@ turn timer included.
 The setup brings [BepInEx](https://github.com/BepInEx/BepInEx), the mod loader, if you don't have it yet. Already using
 BepInEx? Put `com.tantrumua.deckinspector.dll` from [Releases](../../releases) in `BepInEx\plugins` instead.
 
-**Requirements:** Windows, Hearthstone for PC (made for patch 37.0).
+**Requirements:** Windows, Hearthstone for PC (made for patch 37.0.2).
 
 ## License
 
