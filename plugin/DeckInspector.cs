@@ -1,3 +1,4 @@
+using HarmonyLib;
 using UnityEngine;
 
 namespace HsDeckInspector
@@ -27,6 +28,9 @@ namespace HsDeckInspector
 
         private enum State { Closed, Opening, Open, Closing }
         private enum Owner { None, Mine, Opponent }
+
+        private static readonly AccessTools.FieldRef<UniversalInputManager, bool> GameDialogActive =
+            AccessTools.FieldRefAccess<UniversalInputManager, bool>("m_gameDialogActive");
 
         private static State _state;
         private static Owner _owner;
@@ -160,7 +164,8 @@ namespace HsDeckInspector
             if (state == null || state.IsGameOver() || Camera.main == null) return false;
             var mgr = GameMgr.Get();
             if (mgr == null || mgr.IsBattlegrounds() || mgr.IsMercenaries()) return false;
-            if (UniversalInputManager.Get()?.IsTextInputActive() == true) return false;
+            var keys = UniversalInputManager.Get();
+            if (keys == null || keys.IsTextInputActive() || DialogOpen(keys)) return false;
             if (Input.GetMouseButton(0) || Input.GetMouseButton(1)) return false;
             var input = InputManager.Get();
             if (input == null || input.GetHeldCard() != null || state.IsInTargetMode()) return false;
@@ -171,6 +176,9 @@ namespace HsDeckInspector
             _owner = owner;
             return true;
         }
+
+        /// <summary>A menu or popup is up: a key pressed there, binding one included, isn't meant for the deck.</summary>
+        private static bool DialogOpen(UniversalInputManager keys) => GameDialogActive != null && GameDialogActive(keys);
 
         private static void Open()
         {

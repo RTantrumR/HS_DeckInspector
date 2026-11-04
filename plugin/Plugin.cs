@@ -1,6 +1,7 @@
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
+using HarmonyLib;
 using UnityEngine;
 
 namespace HsDeckInspector
@@ -44,6 +45,7 @@ namespace HsDeckInspector
                 "How deep the animated card back's model is: 1 is as the collection shows it.");
             _config = Config;
             InspectInputBlock.Install();
+            new Harmony(MyPluginInfo.PLUGIN_GUID).PatchAll(typeof(Plugin).Assembly);
             Log.LogInfo("HS Deck Inspector loaded");
         }
 
@@ -53,6 +55,7 @@ namespace HsDeckInspector
         {
             try
             {
+                KeyPanel.Update();
                 DeckInspector.Update();
             }
             catch (System.Exception e)

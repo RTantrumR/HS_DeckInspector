@@ -21,6 +21,7 @@ namespace HsDeckInspector
         private static InspectInputBlock _instance;
         private static bool _active;
         private static bool _releasePending;
+        private static bool _holdEscape;
         private static int _escapeUntilFrame = -1;
 
         public static void Install()
@@ -43,6 +44,13 @@ namespace HsDeckInspector
             _active = active;
         }
 
+        /// <summary>The key panel takes Esc for itself, to cancel or close; the menu mustn't open under it.</summary>
+        public static void HoldEscape(bool hold)
+        {
+            if (_holdEscape && !hold) _escapeUntilFrame = Time.frameCount + 1;
+            _holdEscape = hold;
+        }
+
         private static bool AnyButton() =>
             Input.GetMouseButton(0) || Input.GetMouseButton(1) || Input.GetMouseButton(2) ||
             Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1) || Input.GetMouseButtonUp(2);
@@ -56,7 +64,7 @@ namespace HsDeckInspector
         }
 
         private static bool Escape(KeyCode key) =>
-            key == KeyCode.Escape && (_active || Time.frameCount <= _escapeUntilFrame);
+            key == KeyCode.Escape && (_active || _holdEscape || Time.frameCount <= _escapeUntilFrame);
 
         public bool GetMouseButton(int button, out bool value) { value = false; return Blocking(); }
         public bool GetMouseButtonDown(int button, out bool value) { value = false; return Blocking(); }
