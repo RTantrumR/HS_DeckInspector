@@ -13,6 +13,7 @@ namespace HsDeckInspector
         internal static ConfigEntry<KeyCode> InspectKey;
         internal static ConfigEntry<FaceCard.Style> FaceStyle;
         internal static ConfigEntry<float> ArtScale;
+        internal static ConfigEntry<bool> AnimatedBack;
         internal static ConfigEntry<float> DeckHeight;
         internal static ConfigEntry<float> DragSpeed;
 
@@ -29,6 +30,8 @@ namespace HsDeckInspector
                 "The unknown card on the deck's face: Minion (question marks on every stat) or Spell (only the cost).");
             ArtScale = Config.Bind("Look", "ArtScale", 0.62f,
                 "Size of the question mark inside the unknown card's portrait.");
+            AnimatedBack = Config.Bind("Look", "AnimatedBack", true,
+                "Show your card back as the collection does, with its animation and effects, not the deck's flat picture of it.");
             InspectInputBlock.Install();
             Log.LogInfo("HS Deck Inspector loaded");
         }

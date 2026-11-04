@@ -10,7 +10,9 @@ namespace HsDeckInspector
     /// the active thickness by reading renderer.enabled (ZoneDeck.GetActiveThickness), so that flag must never change.
     ///
     /// Root faces the camera (+Z towards it, +Y up) and carries the flight; Spin turns under it around Y; Body holds
-    /// the mesh, the card's back towards +Z; the unknown card sits on the far side, facing -Z.
+    /// the mesh, the card's back towards +Z; the unknown card sits on the far side, facing -Z, and the player's full
+    /// animated card back on the near side, facing +Z. The mesh's own back is the game's flat picture of it, and shows
+    /// only if the animated one can't load.
     /// </summary>
     internal static class DeckInspector
     {
@@ -33,11 +35,27 @@ namespace HsDeckInspector
         private static MeshRenderer _bodyRenderer;
         private static Transform _face;
         private static Actor _faceActor;
-        private static float _faceHeight;
+        private static CardPlacement _facePlacement;
+        private static Transform _back;
+        private static CardPlacement _backPlacement;
+
+        /// <summary>A flat actor's measurements at identity: where it starts, and how tall it is.</summary>
+        private struct CardPlacement
+        {
+            public Vector3 Anchor;
+            public float Height;
+
+            public CardPlacement(Bounds bounds)
+            {
+                Anchor = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+                Height = bounds.size.z;
+            }
+        }
 
         private static Quaternion _bodyRotation;
         private static Vector3 _baseScale;
         private static float _thinnest, _thickest; // the one-card and full meshes' thickness
+        private static float _halfThickness;
         private static int _shownCount = -1;
         private static float _progress;
         private static float _angle, _closeAngle, _velocity;
@@ -162,6 +180,7 @@ namespace HsDeckInspector
             _root.layer = _body.gameObject.layer = sourceTransform.gameObject.layer;
 
             BuildFace(sourceTransform.gameObject.layer);
+            BuildBack(sourceTransform.gameObject.layer);
 
             _shownCount = -1;
             _progress = 0f;
@@ -184,25 +203,61 @@ namespace HsDeckInspector
             _faceActor = null;
             var actor = FaceCard.Build(Plugin.FaceStyle.Value);
             if (actor == null) return;
+            if (!Measure(actor, layer, out _facePlacement)) return;
+            _face = actor.transform;
+            _faceActor = actor;
+        }
+
+        /// <summary>The player's card back as the collection shows it: its own mesh, material and effects.</summary>
+        private static void BuildBack(int layer)
+        {
+            _back = null;
+            if (!Plugin.AnimatedBack.Value) return;
+            int id = GameState.Get().GetFriendlySidePlayer().GetCardBackId();
+            var loaded = CardBackManager.Get()?.LoadCardBackByIndex(id, unlit: true);
+            var actor = loaded?.m_GameObject != null ? loaded.m_GameObject.GetComponent<Actor>() : null;
+            if (actor == null)
+            {
+                Plugin.Log.LogWarning($"Card back {id} did not load; the deck keeps its flat picture");
+                if (loaded?.m_GameObject != null) Object.Destroy(loaded.m_GameObject);
+                return;
+            }
+            actor.gameObject.name = "DeckInspectorCardBack";
+            if (!Measure(actor, layer, out _backPlacement)) return;
+            _back = actor.transform;
+            Plugin.Log.LogInfo($"Card back {id} ({loaded.m_Name}): height {_backPlacement.Height:0.###}, anchor {_backPlacement.Anchor}");
+        }
+
+        /// <summary>Measures a flat actor at identity and hangs it under Spin; false, and gone, if it has no card mesh.</summary>
+        private static bool Measure(Actor actor, int layer, out CardPlacement placement)
+        {
+            placement = default;
             var go = actor.gameObject;
             go.transform.SetParent(null, false);
             go.transform.position = Vector3.zero;
             go.transform.rotation = Quaternion.identity;
             go.transform.localScale = Vector3.one;
-            var frame = actor.m_cardMesh != null ? actor.m_cardMesh.GetComponent<Renderer>() : null;
-            if (frame == null)
+            var card = actor.m_cardMesh != null ? actor.m_cardMesh.GetComponent<Renderer>() : null;
+            if (card == null)
             {
-                Plugin.Log.LogWarning("Face card: no card mesh to measure");
+                Plugin.Log.LogWarning($"{go.name}: no card mesh to measure");
                 Object.Destroy(go);
-                return;
+                return false;
             }
-            Bounds bounds = frame.bounds;
-            _faceHeight = bounds.size.z;
-            _face = go.transform;
-            _faceActor = actor;
-            _face.SetParent(_spin, false);
+            placement = new CardPlacement(card.bounds);
+            go.transform.SetParent(_spin, false);
             foreach (var t in go.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
-            Plugin.Log.LogInfo($"Face card: bounds {bounds.center} size {bounds.size}");
+            return true;
+        }
+
+        /// <summary>Lays a card on one side of the deck, as tall as the deck, its top up and its art facing outward.</summary>
+        private static void Place(Transform card, CardPlacement placement, float deckHeight, float side)
+        {
+            float scale = deckHeight / placement.Height;
+            var rotation = Quaternion.LookRotation(Vector3.up, new Vector3(0f, 0f, side));
+            card.localScale = Vector3.one * scale;
+            card.localRotation = rotation;
+            card.localPosition = new Vector3(0f, 0f, side) * (_halfThickness + FaceLift) - rotation * (placement.Anchor * scale);
         }
 
         private static Mesh MeshOf(Actor step) => step.GetComponentInChildren<MeshFilter>().sharedMesh;
@@ -239,15 +294,10 @@ namespace HsDeckInspector
             _body.localScale = scale;
             _body.localPosition = -(_bodyRotation * Vector3.Scale(bounds.center, scale));
 
-            if (_face != null)
-            {
-                float height = bounds.size.y * scale.y;
-                float half = target * _baseScale.z / 2f;
-                _face.localScale = Vector3.one * (height / _faceHeight);
-                _face.localPosition = new Vector3(0f, 0f, -(half + FaceLift));
-                // Face up (+Y) out of the deck's far side, top (+Z) up.
-                _face.localRotation = Quaternion.LookRotation(Vector3.up, Vector3.back);
-            }
+            float height = bounds.size.y * scale.y;
+            _halfThickness = target * _baseScale.z / 2f;
+            if (_face != null) Place(_face, _facePlacement, height, -1f);
+            if (_back != null) Place(_back, _backPlacement, height, 1f);
         }
 
         private static void Spin()
