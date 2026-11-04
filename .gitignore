@@ -1,0 +1,10 @@
+# IDE
+.idea/
+.vs/
+
+# .NET build output
+bin/
+obj/
+
+# Docs are their own nested repo, as in the sibling addons
+docs/
