@@ -147,6 +147,7 @@ namespace HsDeckInspector
 
         private static void Open()
         {
+            Plugin.ReloadConfig(); // look settings can be tuned between presses, with the game running
             _steps = new[] { _deck.m_Thickness1, _deck.m_Thickness25, _deck.m_Thickness50, _deck.m_Thickness75, _deck.m_ThicknessFull };
             _hidden = new Renderer[_steps.Length];
             for (int i = 0; i < _steps.Length; i++) _hidden[i] = _steps[i].GetMeshRenderer();
@@ -250,14 +251,20 @@ namespace HsDeckInspector
             return true;
         }
 
-        /// <summary>Lays a card on one side of the deck, as tall as the deck, its top up and its art facing outward.</summary>
-        private static void Place(Transform card, CardPlacement placement, float deckHeight, float side)
+        /// <summary>
+        /// Lays a card on one side of the deck, as tall as the deck, its top up and its art facing outward. Depth
+        /// squashes the card towards its base: from the front it reads the same, from the side it hugs the deck, where
+        /// a hand card's raised layers and a deep card back's model would otherwise stand well off it. Gap is the
+        /// distance from the deck's surface, negative to sink into it.
+        /// </summary>
+        private static void Place(Transform card, CardPlacement placement, float deckHeight, float side, float depth, float gap)
         {
-            float scale = deckHeight / placement.Height;
+            float size = deckHeight / placement.Height;
+            var scale = new Vector3(size, size * depth, size);
             var rotation = Quaternion.LookRotation(Vector3.up, new Vector3(0f, 0f, side));
-            card.localScale = Vector3.one * scale;
+            card.localScale = scale;
             card.localRotation = rotation;
-            card.localPosition = new Vector3(0f, 0f, side) * (_halfThickness + FaceLift) - rotation * (placement.Anchor * scale);
+            card.localPosition = new Vector3(0f, 0f, side) * (_halfThickness + gap) - rotation * Vector3.Scale(placement.Anchor, scale);
         }
 
         private static Mesh MeshOf(Actor step) => step.GetComponentInChildren<MeshFilter>().sharedMesh;
@@ -296,8 +303,8 @@ namespace HsDeckInspector
 
             float height = bounds.size.y * scale.y;
             _halfThickness = target * _baseScale.z / 2f;
-            if (_face != null) Place(_face, _facePlacement, height, -1f);
-            if (_back != null) Place(_back, _backPlacement, height, 1f);
+            if (_face != null) Place(_face, _facePlacement, height, -1f, Mathf.Clamp(Plugin.FaceDepth.Value, 0.05f, 1f), FaceLift);
+            if (_back != null) Place(_back, _backPlacement, height, 1f, Mathf.Clamp(Plugin.BackDepth.Value, 0.05f, 1f), -Plugin.BackSink.Value);
         }
 
         private static void Spin()

@@ -14,6 +14,10 @@ namespace HsDeckInspector
         internal static ConfigEntry<FaceCard.Style> FaceStyle;
         internal static ConfigEntry<float> ArtScale;
         internal static ConfigEntry<bool> AnimatedBack;
+        internal static ConfigEntry<float> FaceDepth;
+        internal static ConfigEntry<float> BackDepth;
+        internal static ConfigEntry<float> BackSink;
+        private static ConfigFile _config;
         internal static ConfigEntry<float> DeckHeight;
         internal static ConfigEntry<float> DragSpeed;
 
@@ -32,9 +36,18 @@ namespace HsDeckInspector
                 "Size of the question mark inside the unknown card's portrait.");
             AnimatedBack = Config.Bind("Look", "AnimatedBack", true,
                 "Show your card back as the collection does, with its animation and effects, not the deck's flat picture of it.");
+            FaceDepth = Config.Bind("Look", "FaceDepth", 0.3f,
+                "How far the unknown card's stats and text stand off the card: 1 is a normal hand card.");
+            BackDepth = Config.Bind("Look", "BackDepth", 0.6f,
+                "How deep the animated card back's model is: 1 is as the collection shows it.");
+            BackSink = Config.Bind("Look", "BackSink", 0.02f,
+                "How far the animated card back sinks into the deck, in card units (a card is about 2.8 tall).");
+            _config = Config;
             InspectInputBlock.Install();
             Log.LogInfo("HS Deck Inspector loaded");
         }
+
+        internal static void ReloadConfig() => _config.Reload();
 
         private void Update()
         {
