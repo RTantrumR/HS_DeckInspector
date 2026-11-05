@@ -14,6 +14,8 @@ plain DLL. Separate from HS Replay Watcher (`E:\PYPY\Test_HS_Server`), whose rec
   active thickness. The face card's base entity re-applies itself in the background: portrait through
   `SetPortraitTextureOverride`, texts under `SetBlockTextComponentUpdate`. Anything of the deck's flat back left showing
   reads as a doubled card back. See [docs/deck-inspector.md](docs/deck-inspector.md).
+- **Laid decks:** `plugin/BoardDeck.cs` moves the game's own deck actors onto the board, and hooks iTween for the draws.
+  Off by default; the setting is the only state, shared by G and the panel's dropdown. See the same doc.
 - **Release:** `installer\build.ps1` fills `installer\out`. Firestone's mods page takes the DLL from the latest release,
   so it goes up unzipped under its exact name, tags are plain (`1.0.0`, no `v`), and a build that adds a config
   description must keep `=` out of it. See [docs/installer.md](docs/installer.md).

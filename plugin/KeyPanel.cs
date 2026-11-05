@@ -10,7 +10,9 @@ namespace HsDeckInspector
     /// <summary>
     /// The panel that rebinds the addon's keys, opened by a button added to the game's Options menu. Its parts are copies of
     /// the Sound Options popup's children, never the prefab itself: its root's SoundOptionsMenu would tie them to the
-    /// game's sound settings. Each row is a label over a button showing the bound key: click it, press a key.
+    /// game's sound settings. Each row is a label over a button showing the bound key: click it, press a key; right
+    /// click it to unbind. The last row also has the dropdown that lays the decks: the setting itself is the only state,
+    /// so the dropdown and that row's key can't disagree.
     ///
     /// The popup is cut to its rows: the frame and its two insets are meshes of their own, each three stacked slices
     /// (Top, a stretched Middle, Bottom) of a left end, a stretched centre and a right end. The upper inset is narrowed
@@ -19,12 +21,22 @@ namespace HsDeckInspector
     internal static class KeyPanel
     {
         private const string SoundMenuPrefab = "OptionsMenu_Sound_phone.prefab:67dc77661d359d84ea46fbe496ee81d7";
+        private const string OptionsMenuPrefab = "OptionsMenu.prefab:a6e5621068fd7c8429475b3e1a1aa991";
         private const string Title = "Deck Keys";
         private const string Listening = "Press a key";
+        private const string Note = "The key toggles this, and it stays set between matches.\nRight click a key to unbind it.";
+        private const string On = "On";
+        private const string Off = "Off";
         private const float RefusalSeconds = 3f;
         private const float WidthShare = 0.62f; // of the prefab's width: still clears the title plate and the buttons
         private const float InsetShare = 0.86f; // of the upper inset's height: a label and a button, with some air
         private const float LabelShare = 0.85f; // of an inset's width
+        private const float NoteHeight = 18f; // what the frame grows by for the note, some of it behind the bottom bar
+        private const float NoteFont = 0.72f; // of a label's size
+        private const float PairWidth = 52f; // the last row's key button and dropdown, side by side
+        private const float PairGap = 3f;
+        private const float DropdownTextLift = 1f; // towards the camera: the text sits a hair above the box's face
+        private const float DropdownFont = 1.7f; // of its own size: scaled down to fit, its text would be tiny
         private const float PopSeconds = 0.25f;
         private const float ShownScale = 1.1f; // of the prefab's scale: the size the panel was tuned at
 
@@ -41,6 +53,8 @@ namespace HsDeckInspector
         private static readonly Color RefusedColor = new Color(0.85f, 0.15f, 0.1f);
 
         private static object _prefabHandle; // the asset handle, kept: a dropped one frees its asset
+        private static object _optionsHandle;
+        private static DropdownControl _layDropdown;
         private static GameObject _root;
         private static Vector3 _normalScale;
         private static Row[] _rows;
@@ -50,10 +64,13 @@ namespace HsDeckInspector
 
         public static bool Shown => _root != null && _root.activeSelf;
 
+        public static bool IsLayItem(DropdownMenuItem item) => _layDropdown != null && item.transform.IsChildOf(_layDropdown.transform);
+
         public static void Show()
         {
             if (_root == null && (_failed || !Build())) return;
             foreach (var row in _rows) ShowRow(row);
+            ShowLaid();
             UniversalInputManager.Get().SetGameDialogActive(true);
             InspectInputBlock.HoldEscape(true);
             _open = true;
@@ -138,6 +155,14 @@ namespace HsDeckInspector
             row.Button.SetText(Listening);
         }
 
+        private static void Unbind(Row row)
+        {
+            StopListening();
+            row.Key.Value = KeyCode.None;
+            Plugin.Log.LogInfo($"{row.Label}: unbound");
+            ShowRow(row);
+        }
+
         private static void StopListening()
         {
             var row = _listening;
@@ -149,6 +174,11 @@ namespace HsDeckInspector
         {
             row.Button.SetText(KeyRules.Name(row.Key.Value));
             ShowLabel(row);
+        }
+
+        private static void ShowLaid()
+        {
+            if (_layDropdown != null) _layDropdown.setSelection(Plugin.LayDecks.Value ? On : Off);
         }
 
         private static void ShowLabel(Row row)
@@ -211,6 +241,8 @@ namespace HsDeckInspector
             var bright = Find(t, "MonoSoundCheckbox")?.GetComponent<CheckBox>()?.m_uberText;
             if (bright != null)
                 foreach (var text in labels) text.TextColor = bright.TextColor;
+            var note = CopyText(label, "KeysNote");
+            if (bright != null) note.TextColor = bright.TextColor;
             var second = CopyButton(restore, "SecondKeyButton");
             var third = CopyButton(restore, "ThirdKeyButton");
 
@@ -221,7 +253,7 @@ namespace HsDeckInspector
             {
                 var at = text.transform;
                 if (at.IsChildOf(header) || at.IsChildOf(left) || at.IsChildOf(right) || at.IsChildOf(restore) ||
-                    at.IsChildOf(second) || at.IsChildOf(third) || labels.Contains(text)) continue;
+                    at.IsChildOf(second) || at.IsChildOf(third) || labels.Contains(text) || text == note) continue;
                 text.gameObject.SetActive(false);
             }
 
@@ -235,7 +267,7 @@ namespace HsDeckInspector
                 NewRow(Plugin.LayKey, "Lay decks on the board", labels[2], third.GetComponentInChildren<UIBButton>(true)),
             };
 
-            if (!Shrink(t, _rows.Length, out var insets, out float labelWidth))
+            if (!Shrink(t, _rows.Length, out var insets, out float noteZ, out float labelWidth))
             {
                 Plugin.Log.LogWarning("Key panel: can't measure the frame; the rows stay where the prefab has them");
             }
@@ -243,7 +275,10 @@ namespace HsDeckInspector
             {
                 float centre = Bounds(t.Find("OptionFrame")).center.x;
                 for (int i = 0; i < _rows.Length; i++) PlaceRow(_rows[i], centre, insets[i], labelWidth);
+                PlaceNote(note, centre, noteZ, labelWidth);
+                BuildLayDropdown(layer, _rows[_rows.Length - 1], centre);
             }
+            Plugin.LayDecks.SettingChanged += (s, e) => ShowLaid();
 
             left.GetComponentInChildren<UIBButton>(true)?.AddEventListener(UIEventType.RELEASE, e => Back());
             right.GetComponentInChildren<UIBButton>(true)?.AddEventListener(UIEventType.RELEASE, e => Hide());
@@ -252,6 +287,92 @@ namespace HsDeckInspector
             Plugin.Log.LogInfo($"Key panel built; frame {frame.center} size {frame.size}");
             _root.SetActive(false);
             return true;
+        }
+
+        /// <summary>
+        /// The Options menu's graphics quality dropdown, from the prefab asset, never instantiated whole: its OptionsMenu
+        /// would run. It goes beside the row's key button, both scaled evenly, so their ends keep their shape.
+        /// </summary>
+        private static void BuildLayDropdown(int layer, Row row, float centre)
+        {
+            DropdownControl source = null;
+            try
+            {
+                var handle = AssetLoader.Get().LoadAsset<GameObject>(OptionsMenuPrefab);
+                _optionsHandle = handle;
+                source = handle?.Asset != null ? handle.Asset.GetComponentInChildren<OptionsMenu>(true)?.m_graphicsQuality : null;
+            }
+            catch (Exception e) { Plugin.Log.LogWarning("Key panel: " + e.Message); }
+            if (source == null)
+            {
+                Plugin.Log.LogWarning("Key panel: no dropdown in the Options menu; the row keeps only its key");
+                return;
+            }
+
+            var go = UnityEngine.Object.Instantiate(source.gameObject, _root.transform, false);
+            go.name = "LayDecksDropdown";
+            go.SetActive(true);
+            LayerUtils.SetLayer(go, layer);
+            DropCopiedText(go.transform);
+            var label = go.transform.Find("Label");
+            if (label != null) label.gameObject.SetActive(false); // its "Quality"
+            // Its template's text too: the items are made from it.
+            foreach (var text in go.GetComponentsInChildren<UberText>(true))
+            {
+                text.ResizeToFit = false; // or the box shrinks it right back
+                text.FontSize = Mathf.RoundToInt(text.FontSize * DropdownFont);
+            }
+            var dropdown = go.GetComponent<DropdownControl>();
+            dropdown.addItem(On);
+            dropdown.addItem(Off);
+            dropdown.setItemChosenCallback((chosen, previous) => Plugin.LayDecks.Value = chosen as string == On);
+            dropdown.setMenuShownCallback(shown => { if (shown) LiftBars(dropdown); });
+            _layDropdown = dropdown;
+
+            go.transform.rotation = row.Button.transform.rotation; // it comes laid on its side, for the Options menu's panes
+            FitWidth(go.transform, PairWidth);
+            var button = row.Button.transform;
+            FitWidth(button, PairWidth);
+
+            var keySize = Bounds(button);
+            float half = (PairWidth + PairGap) / 2f;
+            button.position += new Vector3(centre - half - keySize.center.x, 0f, 0f);
+            var size = Bounds(go.transform);
+            go.transform.position += new Vector3(centre + half - size.center.x, button.position.y - go.transform.position.y, keySize.center.z - size.center.z);
+
+            var shownText = dropdown.m_selectedItem != null ? dropdown.m_selectedItem.m_text : null;
+            if (shownText != null)
+            {
+                shownText.Alignment = UberText.AlignmentOptions.Center;
+                var p = shownText.transform.position;
+                shownText.transform.position = new Vector3(p.x, go.transform.position.y + DropdownTextLift, p.z);
+            }
+            Plugin.Log.LogInfo($"Key panel dropdown: {Bounds(go.transform).size} at {Bounds(go.transform).center}, key {Bounds(button).size}");
+        }
+
+        /// <summary>An object scaled evenly to a width.</summary>
+        private static void FitWidth(Transform t, float width)
+        {
+            float now = Bounds(t).size.x;
+            if (now > 0f) t.localScale *= width / now;
+        }
+
+        /// <summary>The items' bars drawn over the menu's frame: they come with mixed sorting orders, some at the frame's
+        /// own, and one at the frame's order loses to its middle piece.</summary>
+        private static void LiftBars(DropdownControl dropdown)
+        {
+            if (dropdown.m_menu == null || dropdown.m_menuItemContainer == null) return;
+            int frame = int.MinValue;
+            foreach (Transform piece in dropdown.m_menu.transform)
+            {
+                var r = piece.GetComponent<MeshRenderer>();
+                if (r != null && piece.name.StartsWith("Dropdown")) frame = Mathf.Max(frame, r.sortingOrder);
+            }
+            if (frame == int.MinValue) return;
+            foreach (var item in dropdown.m_menuItemContainer.GetComponentsInChildren<DropdownMenuItem>(true))
+                foreach (var r in item.GetComponentsInChildren<MeshRenderer>(true))
+                    if (r.GetComponent<MeshFilter>()?.sharedMesh?.name.StartsWith("DropdownSelection") == true)
+                        r.sortingOrder = frame + 1;
         }
 
         private static Transform CopyButton(Transform source, string name)
@@ -266,6 +387,7 @@ namespace HsDeckInspector
         {
             var row = new Row { Key = key, Label = label, Title = title, Button = button, TitleColor = title.TextColor };
             button.AddEventListener(UIEventType.RELEASE, e => Click(row));
+            button.AddEventListener(UIEventType.RIGHTCLICK, e => Unbind(row));
             return row;
         }
 
@@ -274,10 +396,10 @@ namespace HsDeckInspector
         /// a label can be. Everything is measured: the frame's slices sit at large opposite offsets, so their numbers say
         /// little. The prefab has two insets, so a further row grows the frame back by one inset and gap: a negative cut.
         /// </summary>
-        private static bool Shrink(Transform root, int rows, out float[] insets, out float labelWidth)
+        private static bool Shrink(Transform root, int rows, out float[] insets, out float noteZ, out float labelWidth)
         {
             insets = null;
-            labelWidth = 0f;
+            noteZ = labelWidth = 0f;
             var frame = root.Find("OptionFrame");
             var upper = root.Find("OptionSection1");
             var lower = root.Find("OptionSection2");
@@ -302,7 +424,7 @@ namespace HsDeckInspector
             top = Bounds(upper);
 
             float shift = -(top.size.z + gap);
-            float cut = low.size.z + insetCut - top.size.z + shift * (rows - 2);
+            float cut = low.size.z + insetCut - top.size.z + shift * (rows - 2) - NoteHeight;
 
             for (int i = 1; i < rows; i++)
             {
@@ -327,6 +449,7 @@ namespace HsDeckInspector
             root.position += new Vector3(0f, 0f, -cut / 2f); // back to the middle of the screen
             insets = new float[rows];
             for (int i = 0; i < rows; i++) insets[i] = top.center.z - cut / 2f + shift * i;
+            noteZ = ((insets[rows - 1] - top.size.z / 2f) + (Bounds(buttons).max.z - cut / 2f)) / 2f;
             labelWidth = top.size.x * LabelShare;
             Plugin.Log.LogInfo($"Key panel cut by {narrower:0.##} of {whole.size.x:0.##} and {cut:0.##} of {whole.size.z:0.##}; inset {top.size}, gap {gap:0.##}");
             return true;
@@ -383,6 +506,17 @@ namespace HsDeckInspector
             Plugin.Log.LogInfo($"Key panel row: button {size.size}, row at {z}");
         }
 
+        private static void PlaceNote(UberText note, float centre, float z, float width)
+        {
+            float scale = Mathf.Abs(note.transform.lossyScale.x);
+            if (scale > 0f) note.Width = width / scale;
+            note.FontSize = Mathf.RoundToInt(note.FontSize * NoteFont);
+            note.Alignment = UberText.AlignmentOptions.Center;
+            note.Anchor = UberText.AnchorOptions.Middle;
+            note.Text = Note;
+            note.transform.position = new Vector3(centre, note.transform.position.y, z);
+        }
+
         /// <summary>A copy of a text, on the panel's root: the original sits under a slider that gets hidden. The copy
         /// brings the original's rendered text object along; UberText makes its own.</summary>
         private static UberText CopyText(UberText text, string name)
@@ -422,6 +556,17 @@ namespace HsDeckInspector
             foreach (var t in root.GetComponentsInChildren<Transform>(true))
                 if (t.name == name) return t;
             return null;
+        }
+    }
+
+    /// <summary>The chosen item in white on its dark bar: the game greys it, which that bar makes hard to read.</summary>
+    [HarmonyPatch(typeof(DropdownMenuItem), "UpdateTextColor")]
+    internal static class LayChosenWhite
+    {
+        private static void Postfix(DropdownMenuItem __instance)
+        {
+            if (__instance.m_selected != null && __instance.m_selected.activeInHierarchy && KeyPanel.IsLayItem(__instance))
+                __instance.m_text.TextColor = Color.white;
         }
     }
 

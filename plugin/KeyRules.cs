@@ -35,6 +35,7 @@ namespace HsDeckInspector
 
         private static readonly Dictionary<KeyCode, string> Names = new Dictionary<KeyCode, string>
         {
+            { KeyCode.None, "Unbound" },
             { KeyCode.Escape, "Esc" }, { KeyCode.Return, "Enter" }, { KeyCode.KeypadEnter, "Num Enter" },
             { KeyCode.LeftAlt, "Alt" }, { KeyCode.RightAlt, "Alt" }, { KeyCode.AltGr, "Alt" },
             { KeyCode.LeftControl, "Ctrl" }, { KeyCode.RightControl, "Ctrl" },
@@ -52,6 +53,9 @@ namespace HsDeckInspector
             { KeyCode.KeypadPlus, "Num +" }, { KeyCode.KeypadMinus, "Num -" }, { KeyCode.KeypadMultiply, "Num *" },
             { KeyCode.KeypadDivide, "Num /" }, { KeyCode.KeypadPeriod, "Num ." },
         };
+
+        /// <summary>An unbound key is never pressed.</summary>
+        public static bool Pressed(KeyCode key) => key != KeyCode.None && Input.GetKeyDown(key);
 
         /// <summary>Why a key can't be bound, as a line for the screen; null if it can.</summary>
         public static string Refusal(KeyCode key, IEnumerable<KeyCode> taken)

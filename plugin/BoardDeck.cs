@@ -84,7 +84,7 @@ namespace HsDeckInspector
             var mgr = GameMgr.Get();
             bool inMatch = state != null && mgr != null
                 && !mgr.IsBattlegrounds() && !mgr.IsMercenaries() && Camera.main != null;
-            if (inMatch && Input.GetKeyDown(Plugin.LayKey.Value) && !DeckInspector.IsAnyOut && DeckInspector.KeysFree())
+            if (inMatch && KeyRules.Pressed(Plugin.LayKey.Value) && !DeckInspector.IsAnyOut && DeckInspector.KeysFree())
                 Plugin.LayDecks.Value = !Plugin.LayDecks.Value;
             bool on = Plugin.LayDecks.Value;
             Side(ref _mine, inMatch ? state.GetFriendlySidePlayer()?.GetDeckZone() : null, state, on, retuned);

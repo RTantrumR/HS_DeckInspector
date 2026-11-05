@@ -144,8 +144,8 @@ namespace HsDeckInspector
 
         private static Owner PressedDeck()
         {
-            if (Input.GetKeyDown(Plugin.InspectKey.Value)) return Owner.Mine;
-            if (Input.GetKeyDown(Plugin.OpponentKey.Value)) return Owner.Opponent;
+            if (KeyRules.Pressed(Plugin.InspectKey.Value)) return Owner.Mine;
+            if (KeyRules.Pressed(Plugin.OpponentKey.Value)) return Owner.Opponent;
             return Owner.None;
         }
 
