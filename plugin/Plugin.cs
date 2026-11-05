@@ -23,6 +23,18 @@ namespace HsDeckInspector
         private static ConfigFile _config;
         internal static ConfigEntry<float> DeckHeight;
         internal static ConfigEntry<float> DragSpeed;
+        internal static ConfigEntry<bool> LayDecks;
+        internal static ConfigEntry<float> LayTiltX;
+        internal static ConfigEntry<float> LayTiltY;
+        internal static ConfigEntry<float> LayTiltZ;
+        internal static ConfigEntry<float> LayRight;
+        internal static ConfigEntry<float> LayUp;
+        internal static ConfigEntry<float> LayLift;
+        internal static ConfigEntry<float> LayScale;
+        internal static ConfigEntry<float> DrawSlide;
+        internal static ConfigEntry<float> DrawRise;
+        internal static ConfigEntry<float> DrawRevealDelay;
+        internal static ConfigEntry<float> DrawRevealTime;
 
         private void Awake()
         {
@@ -46,6 +58,19 @@ namespace HsDeckInspector
                 "How far the unknown card's stats and text stand off the card: 1 is a normal hand card.");
             BackDepth = Config.Bind("Look", "BackDepth", 0.6f,
                 "How deep the animated card back's model is: 1 is as the collection shows it.");
+            LayDecks = Config.Bind("Board", "LayDecks", false,
+                "Lay both decks on the board with their card backs up, and draw from them there.");
+            LayTiltX = Config.Bind("Board", "LayTiltX", 0f, "Degrees a laid deck leans around the screen's horizontal.");
+            LayTiltY = Config.Bind("Board", "LayTiltY", 16f, "Degrees a laid deck turns around the screen's vertical, to show its thickness.");
+            LayTiltZ = Config.Bind("Board", "LayTiltZ", 0f, "Degrees a laid deck turns in the screen's plane.");
+            LayRight = Config.Bind("Board", "LayRight", 0.2f, "How far right of its slot a laid deck sits, in board units.");
+            LayUp = Config.Bind("Board", "LayUp", 0f, "How far up the screen from its slot a laid deck sits, in board units.");
+            LayLift = Config.Bind("Board", "LayLift", 1.2f, "How far towards the camera a laid deck sits, in board units.");
+            LayScale = Config.Bind("Board", "LayScale", 0.75f, "A laid deck's size against the game's deck: lifted towards the camera it looks bigger, so it needs less than 1 to look the same.");
+            DrawSlide = Config.Bind("Board", "DrawSlide", 2f, "How far a drawn card slides off a laid deck, along the deck, before it heads for the hand.");
+            DrawRise = Config.Bind("Board", "DrawRise", 1f, "How far a drawn card lifts off a laid deck while it slides.");
+            DrawRevealDelay = Config.Bind("Board", "DrawRevealDelay", 0.45f, "Seconds your drawn card stays face down after it leaves a laid deck.");
+            DrawRevealTime = Config.Bind("Board", "DrawRevealTime", 0.4f, "Seconds your drawn card takes to turn over.");
             _config = Config;
             InspectInputBlock.Install();
             new Harmony(MyPluginInfo.PLUGIN_GUID).PatchAll(typeof(Plugin).Assembly);
@@ -53,6 +78,8 @@ namespace HsDeckInspector
         }
 
         internal static void ReloadConfig() => _config.Reload();
+
+        internal static string ConfigPath => _config.ConfigFilePath;
 
         /// <summary>
         /// What Firestone's mods page reads from a plugin's config file (mods-manager.service.ts): it lists an installed
@@ -74,15 +101,21 @@ namespace HsDeckInspector
             try
             {
                 KeyPanel.Update();
+                BoardDeck.Update();
                 DeckInspector.Update();
             }
             catch (System.Exception e)
             {
                 Log.LogError($"Deck inspector: {e}");
                 DeckInspector.Abort();
+                BoardDeck.Disable();
             }
         }
 
-        private void OnDestroy() => DeckInspector.Abort();
+        private void OnDestroy()
+        {
+            DeckInspector.Abort();
+            BoardDeck.Disable();
+        }
     }
 }

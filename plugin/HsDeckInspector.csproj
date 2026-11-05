@@ -56,8 +56,16 @@
       <HintPath>$(HearthstoneManagedPath)Blizzard.T5.UberText.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Blizzard.T5.iTween">
+      <HintPath>$(HearthstoneManagedPath)Blizzard.T5.iTween.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>$(HearthstoneManagedPath)UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(HearthstoneManagedPath)UnityEngine.PhysicsModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
