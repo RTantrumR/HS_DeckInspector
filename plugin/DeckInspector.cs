@@ -115,6 +115,15 @@ namespace HsDeckInspector
         /// <summary>This deck is off the board, so nothing laid on it should show.</summary>
         public static bool IsOut(ZoneDeck deck) => _state != State.Closed && _deck == deck;
 
+        public static bool IsAnyOut => _state != State.Closed;
+
+        /// <summary>Whether a key press is meant for the game's board, and not for a text box or a menu.</summary>
+        public static bool KeysFree()
+        {
+            var keys = UniversalInputManager.Get();
+            return keys != null && !keys.IsTextInputActive() && !DialogOpen(keys);
+        }
+
         /// <summary>Drops everything at once and gives the board its deck and the mouse back.</summary>
         public static void Abort()
         {
@@ -152,8 +161,7 @@ namespace HsDeckInspector
             if (state == null || state.IsGameOver() || Camera.main == null) return false;
             var mgr = GameMgr.Get();
             if (mgr == null || mgr.IsBattlegrounds() || mgr.IsMercenaries()) return false;
-            var keys = UniversalInputManager.Get();
-            if (keys == null || keys.IsTextInputActive() || DialogOpen(keys)) return false;
+            if (!KeysFree()) return false;
             if (Input.GetMouseButton(0) || Input.GetMouseButton(1)) return false;
             var input = InputManager.Get();
             if (input == null || input.GetHeldCard() != null || state.IsInTargetMode()) return false;

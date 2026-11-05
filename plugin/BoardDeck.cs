@@ -82,10 +82,13 @@ namespace HsDeckInspector
             bool retuned = WatchConfig();
             var state = GameState.Get();
             var mgr = GameMgr.Get();
-            bool wanted = Plugin.LayDecks.Value && state != null && mgr != null
+            bool inMatch = state != null && mgr != null
                 && !mgr.IsBattlegrounds() && !mgr.IsMercenaries() && Camera.main != null;
-            Side(ref _mine, wanted ? state.GetFriendlySidePlayer()?.GetDeckZone() : null, state, retuned);
-            Side(ref _theirs, wanted ? state.GetOpposingSidePlayer()?.GetDeckZone() : null, state, retuned);
+            if (inMatch && Input.GetKeyDown(Plugin.LayKey.Value) && !DeckInspector.IsAnyOut && DeckInspector.KeysFree())
+                Plugin.LayDecks.Value = !Plugin.LayDecks.Value;
+            bool on = Plugin.LayDecks.Value;
+            Side(ref _mine, inMatch ? state.GetFriendlySidePlayer()?.GetDeckZone() : null, state, on, retuned);
+            Side(ref _theirs, inMatch ? state.GetOpposingSidePlayer()?.GetDeckZone() : null, state, on, retuned);
         }
 
         /// <summary>Puts everything back and stays out of the way until the game restarts.</summary>
@@ -133,18 +136,19 @@ namespace HsDeckInspector
             return true;
         }
 
-        private static void Side(ref Laid laid, ZoneDeck deck, GameState state, bool retuned)
+        private static void Side(ref Laid laid, ZoneDeck deck, GameState state, bool on, bool retuned)
         {
             if (laid != null && laid.Deck != deck) Release(ref laid);
             if (deck == null) return;
             if (laid == null)
             {
-                if (!state.IsPastBeginPhase()) return;
+                if (!on || !state.IsPastBeginPhase()) return;
                 laid = Lay(deck);
             }
             if (retuned) Aim(laid);
-            laid.Progress = Mathf.Min(1f, laid.Progress + Time.unscaledDeltaTime / SettleTime);
+            laid.Progress = Mathf.MoveTowards(laid.Progress, on ? 1f : 0f, Time.unscaledDeltaTime / SettleTime);
             Apply(laid);
+            if (!on && laid.Progress <= 0f) Release(ref laid);
         }
 
         private static Laid Lay(ZoneDeck deck)

@@ -15,6 +15,7 @@ namespace HsDeckInspector
         internal static ManualLogSource Log;
         internal static ConfigEntry<KeyCode> InspectKey;
         internal static ConfigEntry<KeyCode> OpponentKey;
+        internal static ConfigEntry<KeyCode> LayKey;
         internal static ConfigEntry<FaceCard.Style> FaceStyle;
         internal static ConfigEntry<float> ArtScale;
         internal static ConfigEntry<bool> AnimatedBack;
@@ -44,6 +45,8 @@ namespace HsDeckInspector
                 "Pulls your deck out, and sends it back.");
             OpponentKey = Config.Bind("Controls", "OpponentKey", KeyCode.F,
                 "Pulls your opponent's deck out, and sends it back. Each key swaps to its deck if the other one is out.");
+            LayKey = Config.Bind("Controls", "LayKey", KeyCode.G,
+                "During a match, lays both decks on the board or puts them back.");
             DragSpeed = Config.Bind("Controls", "DragSpeed", 0.45f,
                 "Degrees the deck turns per pixel dragged, at 1080p.");
             DeckHeight = Config.Bind("Look", "DeckHeight", 0.62f,
@@ -101,6 +104,13 @@ namespace HsDeckInspector
             try
             {
                 KeyPanel.Update();
+            }
+            catch (System.Exception e)
+            {
+                Log.LogError($"Key panel: {e}");
+            }
+            try
+            {
                 BoardDeck.Update();
                 DeckInspector.Update();
             }

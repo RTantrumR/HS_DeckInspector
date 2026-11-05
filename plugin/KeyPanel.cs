@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using BepInEx.Configuration;
 using Blizzard.T5.AssetManager;
 using HarmonyLib;
@@ -7,13 +8,13 @@ using UnityEngine;
 namespace HsDeckInspector
 {
     /// <summary>
-    /// The panel that rebinds the deck keys, opened by a button added to the game's Options menu. Its parts are copies of
+    /// The panel that rebinds the addon's keys, opened by a button added to the game's Options menu. Its parts are copies of
     /// the Sound Options popup's children, never the prefab itself: its root's SoundOptionsMenu would tie them to the
     /// game's sound settings. Each row is a label over a button showing the bound key: click it, press a key.
     ///
-    /// The popup is cut down to its two rows: the frame and its two insets are meshes of their own, each three stacked
-    /// slices (Top, a stretched Middle, Bottom) of a left end, a stretched centre and a right end. The upper inset is
-    /// narrowed and shortened with the frame, the lower one becomes a copy of it, and the frame's Middle loses the rest.
+    /// The popup is cut to its rows: the frame and its two insets are meshes of their own, each three stacked slices
+    /// (Top, a stretched Middle, Bottom) of a left end, a stretched centre and a right end. The upper inset is narrowed
+    /// and shortened with the frame, every other row gets a copy of it, and the frame's Middle takes up the difference.
     /// </summary>
     internal static class KeyPanel
     {
@@ -24,6 +25,8 @@ namespace HsDeckInspector
         private const float WidthShare = 0.62f; // of the prefab's width: still clears the title plate and the buttons
         private const float InsetShare = 0.86f; // of the upper inset's height: a label and a button, with some air
         private const float LabelShare = 0.85f; // of an inset's width
+        private const float PopSeconds = 0.25f;
+        private const float ShownScale = 1.1f; // of the prefab's scale: the size the panel was tuned at
 
         private sealed class Row
         {
@@ -55,7 +58,9 @@ namespace HsDeckInspector
             InspectInputBlock.HoldEscape(true);
             _open = true;
             _root.SetActive(true);
-            AnimationUtil.ShowWithPunch(_root, 0.01f * _normalScale, 1.1f * _normalScale, _normalScale, null, noFade: true);
+            // Not AnimationUtil.ShowWithPunch: it runs a coroutine on the object's own MonoBehaviour, and this has none.
+            _root.transform.localScale = 0.01f * _normalScale;
+            iTween.ScaleTo(_root, ShownScale * _normalScale, PopSeconds);
         }
 
         private static void Hide()
@@ -111,8 +116,7 @@ namespace HsDeckInspector
         private static void Pressed(KeyCode key)
         {
             var row = _listening;
-            var other = _rows[0] == row ? _rows[1] : _rows[0];
-            string refusal = KeyRules.Refusal(key, other.Key.Value);
+            string refusal = KeyRules.Refusal(key, _rows.Where(r => r != row).Select(r => r.Key.Value));
             if (refusal != null)
             {
                 row.Title.Text = refusal;
@@ -203,13 +207,12 @@ namespace HsDeckInspector
                 return false;
             }
 
-            var firstLabel = CopyText(label, "FirstKeyLabel");
-            var secondLabel = CopyText(label, "SecondKeyLabel");
+            var labels = new[] { CopyText(label, "FirstKeyLabel"), CopyText(label, "SecondKeyLabel"), CopyText(label, "ThirdKeyLabel") };
             var bright = Find(t, "MonoSoundCheckbox")?.GetComponent<CheckBox>()?.m_uberText;
-            if (bright != null) firstLabel.TextColor = secondLabel.TextColor = bright.TextColor;
-            var copy = UnityEngine.Object.Instantiate(restore.gameObject, restore.parent, false);
-            copy.name = "SecondKeyButton";
-            DropCopiedText(copy.transform);
+            if (bright != null)
+                foreach (var text in labels) text.TextColor = bright.TextColor;
+            var second = CopyButton(restore, "SecondKeyButton");
+            var third = CopyButton(restore, "ThirdKeyButton");
 
             // Everything the sound settings put here goes; what stays is the frame and these parts.
             foreach (var bar in _root.GetComponentsInChildren<ScrollbarControl>(true)) bar.gameObject.SetActive(false);
@@ -218,7 +221,7 @@ namespace HsDeckInspector
             {
                 var at = text.transform;
                 if (at.IsChildOf(header) || at.IsChildOf(left) || at.IsChildOf(right) || at.IsChildOf(restore) ||
-                    at.IsChildOf(copy.transform) || text == firstLabel || text == secondLabel) continue;
+                    at.IsChildOf(second) || at.IsChildOf(third) || labels.Contains(text)) continue;
                 text.gameObject.SetActive(false);
             }
 
@@ -227,19 +230,19 @@ namespace HsDeckInspector
 
             _rows = new[]
             {
-                NewRow(Plugin.InspectKey, "Show your deck", firstLabel, keyButton),
-                NewRow(Plugin.OpponentKey, "Show your opponent's deck", secondLabel, copy.GetComponentInChildren<UIBButton>(true)),
+                NewRow(Plugin.InspectKey, "Show your deck", labels[0], keyButton),
+                NewRow(Plugin.OpponentKey, "Show your opponent's deck", labels[1], second.GetComponentInChildren<UIBButton>(true)),
+                NewRow(Plugin.LayKey, "Lay decks on the board", labels[2], third.GetComponentInChildren<UIBButton>(true)),
             };
 
-            if (!Shrink(t, out var firstInset, out var secondInset, out float labelWidth))
+            if (!Shrink(t, _rows.Length, out var insets, out float labelWidth))
             {
                 Plugin.Log.LogWarning("Key panel: can't measure the frame; the rows stay where the prefab has them");
             }
             else
             {
                 float centre = Bounds(t.Find("OptionFrame")).center.x;
-                PlaceRow(_rows[0], centre, firstInset, labelWidth);
-                PlaceRow(_rows[1], centre, secondInset, labelWidth);
+                for (int i = 0; i < _rows.Length; i++) PlaceRow(_rows[i], centre, insets[i], labelWidth);
             }
 
             left.GetComponentInChildren<UIBButton>(true)?.AddEventListener(UIEventType.RELEASE, e => Back());
@@ -251,6 +254,14 @@ namespace HsDeckInspector
             return true;
         }
 
+        private static Transform CopyButton(Transform source, string name)
+        {
+            var copy = UnityEngine.Object.Instantiate(source.gameObject, source.parent, false);
+            copy.name = name;
+            DropCopiedText(copy.transform);
+            return copy.transform;
+        }
+
         private static Row NewRow(ConfigEntry<KeyCode> key, string label, UberText title, UIBButton button)
         {
             var row = new Row { Key = key, Label = label, Title = title, Button = button, TitleColor = title.TextColor };
@@ -259,12 +270,14 @@ namespace HsDeckInspector
         }
 
         /// <summary>
-        /// Cuts the popup down to two small insets, keeping the spacing it has, and returns their centres and how wide a
-        /// label can be. Everything is measured: the frame's slices sit at large opposite offsets, so their numbers say little.
+        /// Cuts the popup to one small inset per row, keeping the spacing it has, and returns their centres and how wide
+        /// a label can be. Everything is measured: the frame's slices sit at large opposite offsets, so their numbers say
+        /// little. The prefab has two insets, so a further row grows the frame back by one inset and gap: a negative cut.
         /// </summary>
-        private static bool Shrink(Transform root, out float firstInset, out float secondInset, out float labelWidth)
+        private static bool Shrink(Transform root, int rows, out float[] insets, out float labelWidth)
         {
-            firstInset = secondInset = labelWidth = 0f;
+            insets = null;
+            labelWidth = 0f;
             var frame = root.Find("OptionFrame");
             var upper = root.Find("OptionSection1");
             var lower = root.Find("OptionSection2");
@@ -289,11 +302,14 @@ namespace HsDeckInspector
             top = Bounds(upper);
 
             float shift = -(top.size.z + gap);
-            float cut = low.size.z + insetCut - top.size.z;
+            float cut = low.size.z + insetCut - top.size.z + shift * (rows - 2);
 
-            var copy = UnityEngine.Object.Instantiate(upper.gameObject, root, false);
-            copy.name = "OptionSection2Small";
-            copy.transform.position = upper.position + new Vector3(0f, 0f, shift);
+            for (int i = 1; i < rows; i++)
+            {
+                var copy = UnityEngine.Object.Instantiate(upper.gameObject, root, false);
+                copy.name = "OptionSectionSmall" + i;
+                copy.transform.position = upper.position + new Vector3(0f, 0f, shift * i);
+            }
             lower.gameObject.SetActive(false);
 
             foreach (Transform slice in middle) Trim(slice, cut);
@@ -309,8 +325,8 @@ namespace HsDeckInspector
             }
 
             root.position += new Vector3(0f, 0f, -cut / 2f); // back to the middle of the screen
-            firstInset = top.center.z - cut / 2f;
-            secondInset = firstInset + shift;
+            insets = new float[rows];
+            for (int i = 0; i < rows; i++) insets[i] = top.center.z - cut / 2f + shift * i;
             labelWidth = top.size.x * LabelShare;
             Plugin.Log.LogInfo($"Key panel cut by {narrower:0.##} of {whole.size.x:0.##} and {cut:0.##} of {whole.size.z:0.##}; inset {top.size}, gap {gap:0.##}");
             return true;

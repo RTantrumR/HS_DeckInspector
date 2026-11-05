@@ -54,10 +54,10 @@ namespace HsDeckInspector
         };
 
         /// <summary>Why a key can't be bound, as a line for the screen; null if it can.</summary>
-        public static string Refusal(KeyCode key, KeyCode otherDeck)
+        public static string Refusal(KeyCode key, IEnumerable<KeyCode> taken)
         {
             string name = Name(key);
-            if (key == otherDeck) return $"{name} is already the other deck's key";
+            if (taken.Contains(key)) return $"{name} is already taken here";
             if (UsedByGame.Contains(key)) return $"{name} is used by the game";
             if (KeptFree.Contains(key)) return $"{name} can't be used";
             return null;
