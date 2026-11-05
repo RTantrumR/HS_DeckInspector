@@ -217,9 +217,12 @@ namespace HsDeckInspector
         private static void Aim(Laid laid)
         {
             var view = Camera.main.transform;
-            laid.Pose = Quaternion.LookRotation(-view.forward, view.up)
-                * Quaternion.Euler(Plugin.LayTiltX.Value, Plugin.LayTiltY.Value, Plugin.LayTiltZ.Value);
             laid.Base = laid.Slot + view.right * Plugin.LayRight.Value + view.up * Plugin.LayUp.Value - view.forward * Plugin.LayLift.Value;
+            // Each deck faces the camera itself, not the camera's plane: the decks sit off its axis, each at its own height,
+            // and a pose shared with the plane leans them on screen, the further one more. Turned from there around its
+            // own up, a deck's long sides stay upright on screen and it shows no top or bottom edge.
+            laid.Pose = Quaternion.LookRotation(view.position - laid.Base, view.up)
+                * Quaternion.Euler(Plugin.LayTiltX.Value, Plugin.LayTiltY.Value, Plugin.LayTiltZ.Value);
             laid.Fitted = null;
         }
 

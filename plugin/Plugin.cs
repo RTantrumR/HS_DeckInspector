@@ -63,9 +63,9 @@ namespace HsDeckInspector
                 "How deep the animated card back's model is: 1 is as the collection shows it.");
             LayDecks = Config.Bind("Board", "LayDecks", false,
                 "Lay both decks on the board with their card backs up, and draw from them there.");
-            LayTiltX = Config.Bind("Board", "LayTiltX", -14f, "Degrees a laid deck leans around the screen's horizontal, to show its near edge.");
-            LayTiltY = Config.Bind("Board", "LayTiltY", -14f, "Degrees a laid deck turns around the screen's vertical, to show its long edge.");
-            LayTiltZ = Config.Bind("Board", "LayTiltZ", 7f, "Degrees a laid deck turns in the screen's plane: the other two tilts roll it, and this stands it upright again.");
+            LayTiltX = Config.Bind("Board", "LayTiltX", 0f, "Degrees a laid deck leans around the screen's horizontal.");
+            LayTiltY = Config.Bind("Board", "LayTiltY", -28f, "Degrees a laid deck turns away from facing the camera, to show its thickness along one side.");
+            LayTiltZ = Config.Bind("Board", "LayTiltZ", 0f, "Degrees a laid deck turns in the screen's plane.");
             LayRight = Config.Bind("Board", "LayRight", 0.05f, "How far right of its slot a laid deck sits, in board units.");
             LayUp = Config.Bind("Board", "LayUp", 0f, "How far up the screen from its slot a laid deck sits, in board units.");
             LayLift = Config.Bind("Board", "LayLift", 1.2f, "How far towards the camera a laid deck sits, in board units.");
